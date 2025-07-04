@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken, getUserById } from '@/lib/auth';
 import { sendToAI } from '@/lib/chat';
+import { executeQuery } from '@/lib/database';
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,7 +22,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { message, messages } = await request.json();
+    const { message, messages, sessionId } = await request.json();
 
     if (!message) {
       return NextResponse.json(
@@ -40,6 +41,15 @@ export async function POST(request: NextRequest) {
 
     // ارسال به هوش مصنوعی
     const reply = await sendToAI(messages, user.profile);
+
+    // به‌روزرسانی عنوان جلسه اگر اولین پیام است
+    if (sessionId && messages.length <= 2) {
+      const shortTitle = message.length > 30 ? message.substring(0, 30) + '...' : message;
+      await executeQuery(
+        'UPDATE chat_sessions SET title = ? WHERE id = ?',
+        [shortTitle, sessionId]
+      );
+    }
 
     return NextResponse.json({ reply });
   } catch (error) {

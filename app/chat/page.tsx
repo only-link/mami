@@ -13,7 +13,9 @@ import {
   Settings,
   MessageSquare,
   Send,
-  Loader2
+  Loader2,
+  X,
+  Check
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
@@ -33,6 +35,13 @@ interface UserProfile {
   is_complete: boolean;
 }
 
+interface ChatSession {
+  id: number;
+  title: string;
+  created_at: string;
+  message_count: number;
+}
+
 export default function ChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
@@ -41,6 +50,9 @@ export default function ChatPage() {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState(0);
+  const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
+  const [currentSessionId, setCurrentSessionId] = useState<number | null>(null);
+  const [showOnboardingOptions, setShowOnboardingOptions] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
@@ -67,15 +79,26 @@ export default function ChatPage() {
           const step = getOnboardingStep(data.user.profile);
           setOnboardingStep(step);
           
-          // اگر onboarding کامل نشده، پیام خوش‌آمدگویی نمایش بده
-          if (step < 5) {
+          // بارگذاری جلسات چت
+          await loadChatSessions();
+          
+          // اگر پروفایل کامل است، آخرین جلسه را بارگذاری کن
+          if (step >= 5) {
+            await loadLastChatSession();
+          } else {
+            // اگر onboarding کامل نشده، پیام خوش‌آمدگویی نمایش بده
             const welcomeMessage: ChatMessage = {
               id: Date.now(),
-              content: 'سلام! من هوش مصنوعی مامی‌لند هستم. لطفاً برای شروع کار اسم خودتون رو بگید.',
+              content: getOnboardingMessage(step),
               role: 'assistant',
               created_at: new Date().toISOString()
             };
             setMessages([welcomeMessage]);
+            
+            // نمایش گزینه‌ها برای سوالات مناسب
+            if (step === 2) {
+              setShowOnboardingOptions(true);
+            }
           }
         }
       } else {
@@ -84,6 +107,72 @@ export default function ChatPage() {
     } catch (error) {
       router.push('/');
     }
+  };
+
+  const loadChatSessions = async () => {
+    try {
+      const response = await fetch('/api/chat/sessions');
+      if (response.ok) {
+        const data = await response.json();
+        setChatSessions(data.sessions || []);
+      }
+    } catch (error) {
+      console.error('Error loading chat sessions:', error);
+    }
+  };
+
+  const loadLastChatSession = async () => {
+    try {
+      const response = await fetch('/api/chat/sessions');
+      if (response.ok) {
+        const data = await response.json();
+        const sessions = data.sessions || [];
+        if (sessions.length > 0) {
+          const lastSession = sessions[0];
+          setCurrentSessionId(lastSession.id);
+          await loadChatMessages(lastSession.id);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading last chat session:', error);
+    }
+  };
+
+  const loadChatMessages = async (sessionId: number) => {
+    try {
+      const response = await fetch(`/api/chat/messages/${sessionId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setMessages(data.messages || []);
+      }
+    } catch (error) {
+      console.error('Error loading chat messages:', error);
+    }
+  };
+
+  const createNewChatSession = async () => {
+    try {
+      const response = await fetch('/api/chat/sessions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title: 'چت جدید'
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setCurrentSessionId(data.sessionId);
+        setMessages([]);
+        await loadChatSessions();
+        return data.sessionId;
+      }
+    } catch (error) {
+      console.error('Error creating new chat session:', error);
+    }
+    return null;
   };
 
   const getOnboardingStep = (profile: UserProfile): number => {
@@ -95,25 +184,62 @@ export default function ChatPage() {
     return 5;
   };
 
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newMessage.trim() || isLoading) return;
+  const getOnboardingMessage = (step: number): string => {
+    const messages = [
+      'سلام! من هوش مصنوعی مامی‌لند هستم. لطفاً برای شروع کار اسم خودتون رو بگید.',
+      'خوشبختم! لطفاً سن خودتون رو بگید.',
+      'وضعیت فعلی شما چیست؟',
+      'لطفاً بگید هفته چندم بارداری هستید؟',
+      'آیا بیماری زمینه‌ای دارید؟ اگر دارید لطفاً توضیح دهید، در غیر این صورت "ندارم" بنویسید.',
+      'عالی! اطلاعات شما ذخیره شد و می‌توانید ادامه سوالاتتون رو بپرسید.'
+    ];
+    return messages[step] || messages[0];
+  };
+
+  // تبدیل اعداد فارسی به انگلیسی
+  const convertPersianToEnglish = (str: string): string => {
+    const persianNumbers = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'];
+    const englishNumbers = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+    
+    let result = str;
+    for (let i = 0; i < persianNumbers.length; i++) {
+      result = result.replace(new RegExp(persianNumbers[i], 'g'), englishNumbers[i]);
+    }
+    return result;
+  };
+
+  const handleOnboardingOption = async (option: string) => {
+    setShowOnboardingOptions(false);
+    await handleSendMessage(null, option);
+  };
+
+  const handleSendMessage = async (e: React.FormEvent | null, customMessage?: string) => {
+    if (e) e.preventDefault();
+    const messageContent = customMessage || newMessage.trim();
+    if (!messageContent || isLoading) return;
+
+    // ایجاد جلسه جدید اگر وجود ندارد
+    let sessionId = currentSessionId;
+    if (!sessionId) {
+      sessionId = await createNewChatSession();
+      if (!sessionId) return;
+    }
 
     const userMsg: ChatMessage = {
       id: Date.now(),
-      content: newMessage.trim(),
+      content: messageContent,
       role: 'user',
       created_at: new Date().toISOString()
     };
 
     setMessages(prev => [...prev, userMsg]);
-    setNewMessage('');
+    if (!customMessage) setNewMessage('');
     setIsLoading(true);
 
     try {
       // اگر در مرحله onboarding هستیم
       if (onboardingStep < 5) {
-        const result = await processOnboarding(newMessage.trim(), onboardingStep);
+        const result = await processOnboarding(messageContent, onboardingStep);
         if (result.reply) {
           const assistantMsg: ChatMessage = {
             id: Date.now() + 1,
@@ -124,11 +250,20 @@ export default function ChatPage() {
           setMessages(prev => [...prev, assistantMsg]);
           setOnboardingStep(result.nextStep);
           
+          // نمایش گزینه‌ها برای سوال بعدی
+          if (result.nextStep === 2) {
+            setShowOnboardingOptions(true);
+          }
+          
           // به‌روزرسانی پروفایل
           if (result.profile) {
             setUserProfile(result.profile);
             await updateProfile(result.profile);
           }
+
+          // ذخیره پیام‌ها در دیتابیس
+          await saveChatMessage(sessionId, userMsg.content, 'user');
+          await saveChatMessage(sessionId, assistantMsg.content, 'assistant');
         }
       } else {
         // ارسال به هوش مصنوعی
@@ -138,8 +273,9 @@ export default function ChatPage() {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            message: newMessage.trim(),
-            messages: [...messages, userMsg]
+            message: messageContent,
+            messages: [...messages, userMsg],
+            sessionId: sessionId
           }),
         });
 
@@ -152,6 +288,13 @@ export default function ChatPage() {
             created_at: new Date().toISOString()
           };
           setMessages(prev => [...prev, assistantMsg]);
+
+          // ذخیره پیام‌ها در دیتابیس
+          await saveChatMessage(sessionId, userMsg.content, 'user');
+          await saveChatMessage(sessionId, assistantMsg.content, 'assistant');
+          
+          // به‌روزرسانی لیست جلسات
+          await loadChatSessions();
         } else {
           throw new Error('خطا در ارسال پیام');
         }
@@ -169,6 +312,24 @@ export default function ChatPage() {
     setIsLoading(false);
   };
 
+  const saveChatMessage = async (sessionId: number, content: string, role: 'user' | 'assistant') => {
+    try {
+      await fetch('/api/chat/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sessionId,
+          content,
+          role
+        }),
+      });
+    } catch (error) {
+      console.error('Error saving chat message:', error);
+    }
+  };
+
   const processOnboarding = async (content: string, step: number) => {
     const profile = { ...userProfile } as UserProfile;
     let reply: string | null = null;
@@ -181,32 +342,38 @@ export default function ChatPage() {
         nextStep = 1;
         break;
       case 1:
-        const age = parseInt(content.trim(), 10);
+        const convertedContent = convertPersianToEnglish(content.trim());
+        const age = parseInt(convertedContent, 10);
         if (isNaN(age) || age < 15 || age > 60) {
           reply = 'لطفاً سن معتبری وارد کنید (۱۵ تا ۶۰).';
         } else {
           profile.age = age;
-          reply = 'آیا در حال حاضر باردار هستید؟ لطفاً "بله" یا "خیر" پاسخ دهید.';
+          reply = 'وضعیت فعلی شما چیست؟';
           nextStep = 2;
         }
         break;
       case 2:
-        const pregnancyAnswer = content.trim().toLowerCase();
-        if (pregnancyAnswer.includes('بله') || pregnancyAnswer.includes('آره') || pregnancyAnswer.includes('هستم')) {
-          profile.is_pregnant = true;
-          reply = 'لطفاً بگید هفته چندم بارداری هستید؟';
-          nextStep = 3;
-        } else if (pregnancyAnswer.includes('خیر') || pregnancyAnswer.includes('نه') || pregnancyAnswer.includes('نیستم')) {
+        if (content === 'مادر هستم') {
           profile.is_pregnant = false;
           profile.pregnancy_week = 0;
           reply = 'آیا بیماری زمینه‌ای دارید؟ اگر دارید لطفاً توضیح دهید، در غیر این صورت "ندارم" بنویسید.';
           nextStep = 4;
+        } else if (content === 'حامله هستم' || content === 'باردار هستم') {
+          profile.is_pregnant = true;
+          reply = 'لطفاً بگید هفته چندم بارداری هستید؟';
+          nextStep = 3;
+        } else if (content === 'هیچکدام') {
+          profile.is_pregnant = null;
+          profile.pregnancy_week = 0;
+          reply = 'آیا بیماری زمینه‌ای دارید؟ اگر دارید لطفاً توضیح دهید، در غیر این صورت "ندارم" بنویسید.';
+          nextStep = 4;
         } else {
-          reply = 'لطفاً با "بله" یا "خیر" پاسخ دهید.';
+          reply = 'لطفاً یکی از گزینه‌های ارائه شده را انتخاب کنید.';
         }
         break;
       case 3:
-        const week = parseInt(content.trim(), 10);
+        const convertedWeek = convertPersianToEnglish(content.trim());
+        const week = parseInt(convertedWeek, 10);
         if (isNaN(week) || week < 1 || week > 42) {
           reply = 'لطفاً یک عدد بین ۱ تا ۴۲ وارد کنید.';
         } else {
@@ -249,84 +416,82 @@ export default function ChatPage() {
     }
   };
 
-  const clearChat = () => {
-    setMessages([]);
-    setOnboardingStep(0);
-    setUserProfile({
-      name: '',
-      age: null,
-      is_pregnant: null,
-      pregnancy_week: null,
-      medical_conditions: null,
-      is_complete: false
-    });
-    
-    const welcomeMessage: ChatMessage = {
-      id: Date.now(),
-      content: 'سلام! من هوش مصنوعی مامی‌لند هستم. لطفاً برای شروع کار اسم خودتون رو بگید.',
-      role: 'assistant',
-      created_at: new Date().toISOString()
-    };
-    setMessages([welcomeMessage]);
+  const startNewChat = async () => {
+    const sessionId = await createNewChatSession();
+    if (sessionId) {
+      setMessages([]);
+      setSidebarOpen(false);
+    }
+  };
+
+  const loadChatSession = async (sessionId: number) => {
+    setCurrentSessionId(sessionId);
+    await loadChatMessages(sessionId);
+    setSidebarOpen(false);
   };
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-pink-50 via-white to-rose-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="w-8 h-8 border-4 border-pink-500 border-t-transparent rounded-full animate-spin"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-pink-50 via-white to-rose-50 flex flex-col" dir="rtl">
-      {/* Desktop Sidebar */}
-      <div className={`fixed inset-y-0 right-0 z-50 w-80 bg-white border-l border-pink-100 transform transition-transform duration-300 ease-in-out ${
+    <div className="min-h-screen bg-gray-50 flex" dir="rtl">
+      {/* Sidebar */}
+      <div className={`fixed inset-y-0 right-0 z-50 w-80 bg-white border-l border-gray-200 transform transition-transform duration-300 ease-in-out ${
         sidebarOpen ? 'translate-x-0' : 'translate-x-full'
       } lg:relative lg:translate-x-0 lg:flex lg:flex-col`}>
         <div className="flex flex-col h-full">
           {/* Sidebar Header */}
-          <div className="p-6 border-b border-pink-100">
+          <div className="p-4 border-b border-gray-200">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-gray-800">چت‌های من</h2>
+              <h2 className="text-lg font-semibold text-gray-900">چت‌های من</h2>
               <button
                 onClick={() => setSidebarOpen(false)}
-                className="lg:hidden p-2 hover:bg-pink-50 rounded-lg transition-colors duration-200"
+                className="lg:hidden p-2 hover:bg-gray-100 rounded-lg transition-colors duration-200"
               >
-                ✕
+                <X size={20} />
               </button>
             </div>
             
             <button
-              onClick={clearChat}
-              className="w-full flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white rounded-xl transition-all duration-200 hover:shadow-lg"
+              onClick={startNewChat}
+              className="w-full flex items-center gap-3 px-4 py-3 bg-pink-500 hover:bg-pink-600 text-white rounded-lg transition-all duration-200"
             >
               <Plus size={18} />
               چت جدید
             </button>
           </div>
 
-          {/* Chat History */}
+          {/* Chat Sessions */}
           <div className="flex-1 overflow-y-auto p-4">
-            {messages.length > 0 ? (
-              <div className="space-y-3">
-                <div className="bg-pink-50 border border-pink-200 rounded-xl p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <Clock size={16} className="text-pink-600" />
-                      <span className="text-sm font-medium text-gray-800">چت فعلی</span>
+            {chatSessions.length > 0 ? (
+              <div className="space-y-2">
+                {chatSessions.map((session) => (
+                  <button
+                    key={session.id}
+                    onClick={() => loadChatSession(session.id)}
+                    className={`w-full text-right p-3 rounded-lg transition-colors duration-200 ${
+                      currentSessionId === session.id
+                        ? 'bg-pink-50 border border-pink-200 text-pink-700'
+                        : 'hover:bg-gray-50 text-gray-700'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <MessageSquare size={16} />
+                        <span className="text-sm font-medium truncate">{session.title}</span>
+                      </div>
+                      <span className="text-xs text-gray-500">{session.message_count}</span>
                     </div>
-                    <button
-                      onClick={clearChat}
-                      className="p-1 text-gray-500 hover:text-red-500 transition-colors duration-200"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                  <p className="text-xs text-gray-600">
-                    {messages.length} پیام • {new Date().toLocaleDateString('fa-IR')}
-                  </p>
-                </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {new Date(session.created_at).toLocaleDateString('fa-IR')}
+                    </p>
+                  </button>
+                ))}
               </div>
             ) : (
               <div className="text-center py-8">
@@ -337,26 +502,24 @@ export default function ChatPage() {
           </div>
 
           {/* User Info */}
-          <div className="p-4 border-t border-pink-100">
+          <div className="p-4 border-t border-gray-200">
             <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 bg-gradient-to-r from-pink-500 to-rose-500 rounded-full flex items-center justify-center">
-                <User className="text-white" size={18} />
+              <div className="w-10 h-10 bg-pink-500 text-white rounded-full flex items-center justify-center">
+                <User size={18} />
               </div>
               <div className="flex-1">
-                <p className="font-medium text-gray-800">{userProfile?.name || user.username}</p>
+                <p className="font-medium text-gray-900">{userProfile?.name || user.username}</p>
                 <p className="text-xs text-gray-600">{user.email}</p>
               </div>
             </div>
             
-            <div className="space-y-2">
-              <button
-                onClick={handleLogout}
-                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-pink-600 hover:bg-pink-50 rounded-lg transition-colors duration-200"
-              >
-                <LogOut size={16} />
-                خروج از حساب
-              </button>
-            </div>
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-pink-600 hover:bg-pink-50 rounded-lg transition-colors duration-200"
+            >
+              <LogOut size={16} />
+              خروج از حساب
+            </button>
           </div>
         </div>
       </div>
@@ -372,25 +535,25 @@ export default function ChatPage() {
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col lg:mr-80">
         {/* Chat Header */}
-        <div className="bg-white border-b border-pink-100 p-4">
+        <div className="bg-white border-b border-gray-200 p-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setSidebarOpen(true)}
-                className="lg:hidden p-2 hover:bg-pink-50 rounded-lg transition-colors duration-200"
+                className="lg:hidden p-2 hover:bg-gray-100 rounded-lg transition-colors duration-200"
               >
                 <Menu size={20} />
               </button>
               
-              <div className="w-10 h-10 bg-gradient-to-r from-pink-500 to-rose-500 rounded-2xl flex items-center justify-center">
+              <div className="w-10 h-10 bg-pink-500 rounded-lg flex items-center justify-center">
                 <MessageCircle className="text-white" size={20} />
               </div>
               
               <div>
-                <h1 className="font-semibold text-gray-800">چت‌بات مامی‌لند</h1>
+                <h1 className="font-semibold text-gray-900">مامی‌لند</h1>
                 <p className="text-sm text-gray-600">
                   {userProfile?.is_complete && userProfile?.name 
-                    ? `سلام ${userProfile.name}، دستیار هوشمند شما`
+                    ? `سلام ${userProfile.name}`
                     : 'دستیار هوشمند شما'
                   }
                 </p>
@@ -398,7 +561,7 @@ export default function ChatPage() {
             </div>
 
             {userProfile?.is_complete && (
-              <div className="hidden sm:flex items-center gap-2 px-3 py-2 bg-pink-50 rounded-xl">
+              <div className="hidden sm:flex items-center gap-2 px-3 py-2 bg-pink-50 rounded-lg">
                 <User size={16} className="text-pink-600" />
                 <span className="text-sm text-pink-700">
                   {userProfile.is_pregnant && userProfile.pregnancy_week && userProfile.pregnancy_week > 0 
@@ -412,41 +575,60 @@ export default function ChatPage() {
         </div>
 
         {/* Messages Area */}
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className="flex-1 overflow-y-auto">
           {messages.length === 0 ? (
-            <div className="flex-1 flex items-center justify-center">
-              <div className="text-center max-w-md mx-auto">
-                <div className="w-20 h-20 bg-gradient-to-r from-pink-500 to-rose-500 rounded-3xl flex items-center justify-center mx-auto mb-6">
+            <div className="flex-1 flex items-center justify-center p-4">
+              <div className="text-center max-w-2xl mx-auto">
+                <div className="w-16 h-16 bg-pink-500 rounded-2xl flex items-center justify-center mx-auto mb-6">
                   <MessageCircle className="text-white" size={32} />
                 </div>
                 
-                <h2 className="text-2xl font-bold text-gray-800 mb-3">
+                <h2 className="text-2xl font-bold text-gray-900 mb-3">
                   {userProfile?.name ? `سلام ${userProfile.name}!` : 'به مامی‌لند خوش آمدید'}
                 </h2>
                 
                 <p className="text-gray-600 mb-8 leading-relaxed">
                   من دستیار هوشمند مامی‌لند هستم. آماده‌ام تا در زمینه‌های بارداری، مادری و خانواده به شما کمک کنم.
                 </p>
+
+                {userProfile?.is_complete && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-w-2xl mx-auto">
+                    {[
+                      'نکات مهم دوران بارداری چیست؟',
+                      'چگونه از نوزادم مراقبت کنم؟',
+                      'تغذیه مناسب در بارداری چگونه باشد؟',
+                      'علائم خطرناک بارداری کدامند؟',
+                    ].map((question, index) => (
+                      <button
+                        key={index}
+                        onClick={() => handleSendMessage(null, question)}
+                        className="text-right p-4 bg-white hover:bg-gray-50 border border-gray-200 hover:border-pink-200 rounded-xl transition-all duration-200 text-sm text-gray-700 hover:text-pink-700"
+                      >
+                        {question}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           ) : (
-            <div className="max-w-4xl mx-auto">
+            <div className="max-w-4xl mx-auto p-4">
               <div className="space-y-6">
                 {messages.map((message) => (
-                  <div key={message.id} className={`flex gap-3 ${message.role === 'user' ? 'flex-row-reverse' : 'flex-row'} animate-fade-in`}>
+                  <div key={message.id} className={`flex gap-4 ${message.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
                     <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
                       message.role === 'user' 
-                        ? 'bg-gradient-to-r from-pink-500 to-rose-500 text-white' 
-                        : 'bg-white border-2 border-pink-200 text-pink-600'
+                        ? 'bg-pink-500 text-white' 
+                        : 'bg-gray-100 text-gray-600'
                     }`}>
                       {message.role === 'user' ? <User size={16} /> : <Bot size={16} />}
                     </div>
                     
-                    <div className={`flex flex-col ${message.role === 'user' ? 'items-end' : 'items-start'} max-w-[70%]`}>
-                      <div className={`px-4 py-3 rounded-2xl shadow-sm ${
+                    <div className={`flex flex-col ${message.role === 'user' ? 'items-end' : 'items-start'} max-w-[80%]`}>
+                      <div className={`px-4 py-3 rounded-2xl ${
                         message.role === 'user'
-                          ? 'bg-gradient-to-r from-pink-500 to-rose-500 text-white rounded-br-md'
-                          : 'bg-white border border-pink-100 text-gray-800 rounded-bl-md'
+                          ? 'bg-pink-500 text-white'
+                          : 'bg-white border border-gray-200 text-gray-900'
                       }`}>
                         <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
                       </div>
@@ -464,15 +646,15 @@ export default function ChatPage() {
                 
                 {isLoading && (
                   <div className="flex justify-start">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-white border-2 border-pink-200 flex items-center justify-center">
-                        <div className="w-4 h-4 border-2 border-pink-500 border-t-transparent rounded-full animate-spin"></div>
+                    <div className="flex items-center gap-4">
+                      <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
+                        <Bot size={16} className="text-gray-600" />
                       </div>
-                      <div className="bg-white border border-pink-100 rounded-2xl rounded-bl-md px-4 py-3">
+                      <div className="bg-white border border-gray-200 rounded-2xl px-4 py-3">
                         <div className="flex gap-1">
-                          <div className="w-2 h-2 bg-pink-400 rounded-full animate-bounce"></div>
-                          <div className="w-2 h-2 bg-pink-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                          <div className="w-2 h-2 bg-pink-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                         </div>
                       </div>
                     </div>
@@ -485,11 +667,31 @@ export default function ChatPage() {
           )}
         </div>
 
+        {/* Onboarding Options */}
+        {showOnboardingOptions && onboardingStep === 2 && (
+          <div className="p-4 bg-white border-t border-gray-200">
+            <div className="max-w-4xl mx-auto">
+              <p className="text-sm text-gray-600 mb-3 text-center">لطفاً یکی از گزینه‌های زیر را انتخاب کنید:</p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {['مادر هستم', 'حامله هستم', 'هیچکدام'].map((option) => (
+                  <button
+                    key={option}
+                    onClick={() => handleOnboardingOption(option)}
+                    className="px-4 py-3 bg-pink-50 hover:bg-pink-100 border border-pink-200 hover:border-pink-300 text-pink-700 rounded-xl transition-all duration-200 text-sm font-medium"
+                  >
+                    {option}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Input Area */}
-        <div className="p-4 bg-white border-t border-pink-100">
+        <div className="p-4 bg-white border-t border-gray-200">
           <div className="max-w-4xl mx-auto">
-            <form onSubmit={handleSendMessage} className="bg-white rounded-2xl shadow-lg border border-pink-100 p-4">
-              <div className="flex gap-3 items-end">
+            <form onSubmit={handleSendMessage} className="flex gap-3 items-end">
+              <div className="flex-1 relative">
                 <textarea
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
@@ -500,21 +702,20 @@ export default function ChatPage() {
                     }
                   }}
                   placeholder="پیام خود را اینجا بنویسید..."
-                  className="flex-1 resize-none bg-transparent border-none outline-none text-sm leading-relaxed min-h-[20px] max-h-[120px] placeholder-gray-400"
+                  className="w-full resize-none bg-white border border-gray-300 rounded-xl px-4 py-3 pr-4 pl-12 focus:ring-2 focus:ring-pink-500 focus:border-transparent outline-none transition-all duration-200 min-h-[48px] max-h-[120px]"
                   rows={1}
-                  disabled={isLoading}
+                  disabled={isLoading || showOnboardingOptions}
                   dir="rtl"
                 />
-                
                 <button
                   type="submit"
-                  disabled={!newMessage.trim() || isLoading}
-                  className="flex-shrink-0 w-10 h-10 bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white rounded-xl flex items-center justify-center transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-lg hover:scale-105 active:scale-95"
+                  disabled={!newMessage.trim() || isLoading || showOnboardingOptions}
+                  className="absolute left-2 bottom-2 w-8 h-8 bg-pink-500 hover:bg-pink-600 text-white rounded-lg flex items-center justify-center transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isLoading ? (
-                    <Loader2 size={18} className="animate-spin" />
+                    <Loader2 size={16} className="animate-spin" />
                   ) : (
-                    <Send size={18} />
+                    <Send size={16} />
                   )}
                 </button>
               </div>
