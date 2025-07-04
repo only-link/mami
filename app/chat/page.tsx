@@ -6,7 +6,6 @@ import {
   Plus, 
   Menu, 
   LogOut, 
-  Trash2, 
   Clock,
   User,
   Bot,
@@ -15,7 +14,10 @@ import {
   Send,
   Loader2,
   X,
-  Check
+  Edit,
+  Save,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
@@ -53,6 +55,16 @@ export default function ChatPage() {
   const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<number | null>(null);
   const [showOnboardingOptions, setShowOnboardingOptions] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [profileForm, setProfileForm] = useState<UserProfile>({
+    name: '',
+    age: null,
+    is_pregnant: null,
+    pregnancy_week: null,
+    medical_conditions: '',
+    is_complete: false
+  });
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
@@ -73,6 +85,14 @@ export default function ChatPage() {
         const data = await response.json();
         setUser(data.user);
         setUserProfile(data.user.profile);
+        setProfileForm(data.user.profile || {
+          name: '',
+          age: null,
+          is_pregnant: null,
+          pregnancy_week: null,
+          medical_conditions: '',
+          is_complete: false
+        });
         
         // تعیین مرحله onboarding
         if (data.user.profile) {
@@ -258,6 +278,7 @@ export default function ChatPage() {
           // به‌روزرسانی پروفایل
           if (result.profile) {
             setUserProfile(result.profile);
+            setProfileForm(result.profile);
             await updateProfile(result.profile);
           }
 
@@ -407,6 +428,17 @@ export default function ChatPage() {
     }
   };
 
+  const handleSaveProfile = async () => {
+    try {
+      await updateProfile(profileForm);
+      setUserProfile(profileForm);
+      setEditingProfile(false);
+      alert('اطلاعات با موفقیت ذخیره شد');
+    } catch (error) {
+      alert('خطا در ذخیره اطلاعات');
+    }
+  };
+
   const handleLogout = async () => {
     try {
       await fetch('/api/auth/logout', { method: 'POST' });
@@ -513,13 +545,23 @@ export default function ChatPage() {
               </div>
             </div>
             
-            <button
-              onClick={handleLogout}
-              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-pink-600 hover:bg-pink-50 rounded-lg transition-colors duration-200"
-            >
-              <LogOut size={16} />
-              خروج از حساب
-            </button>
+            <div className="space-y-2">
+              <button
+                onClick={() => setShowSettings(true)}
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-pink-600 hover:bg-pink-50 rounded-lg transition-colors duration-200"
+              >
+                <Settings size={16} />
+                تنظیمات حساب
+              </button>
+              
+              <button
+                onClick={handleLogout}
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-pink-600 hover:bg-pink-50 rounded-lg transition-colors duration-200"
+              >
+                <LogOut size={16} />
+                خروج از حساب
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -533,7 +575,7 @@ export default function ChatPage() {
       )}
 
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col lg:mr-80">
+      <div className="flex-1 flex flex-col">
         {/* Chat Header */}
         <div className="bg-white border-b border-gray-200 p-4">
           <div className="flex items-center justify-between">
@@ -723,6 +765,146 @@ export default function ChatPage() {
           </div>
         </div>
       </div>
+
+      {/* Settings Modal */}
+      {showSettings && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-semibold text-gray-800">تنظیمات حساب</h3>
+              <button
+                onClick={() => {
+                  setShowSettings(false);
+                  setEditingProfile(false);
+                }}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium text-gray-600">نام کاربری:</label>
+                <p className="text-gray-800 bg-gray-50 p-2 rounded">{user.username}</p>
+              </div>
+              
+              <div>
+                <label className="text-sm font-medium text-gray-600">ایمیل:</label>
+                <p className="text-gray-800 bg-gray-50 p-2 rounded">{user.email}</p>
+              </div>
+              
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-sm font-medium text-gray-600">نام:</label>
+                  <button
+                    onClick={() => setEditingProfile(!editingProfile)}
+                    className="text-pink-600 hover:text-pink-700"
+                  >
+                    {editingProfile ? <X size={16} /> : <Edit size={16} />}
+                  </button>
+                </div>
+                {editingProfile ? (
+                  <input
+                    type="text"
+                    value={profileForm.name}
+                    onChange={(e) => setProfileForm({...profileForm, name: e.target.value})}
+                    className="w-full p-2 border border-gray-300 rounded"
+                  />
+                ) : (
+                  <p className="text-gray-800 bg-gray-50 p-2 rounded">{userProfile?.name || 'تعیین نشده'}</p>
+                )}
+              </div>
+              
+              <div>
+                <label className="text-sm font-medium text-gray-600">سن:</label>
+                {editingProfile ? (
+                  <input
+                    type="number"
+                    value={profileForm.age || ''}
+                    onChange={(e) => setProfileForm({...profileForm, age: e.target.value ? parseInt(e.target.value) : null})}
+                    className="w-full p-2 border border-gray-300 rounded"
+                    min="15"
+                    max="60"
+                  />
+                ) : (
+                  <p className="text-gray-800 bg-gray-50 p-2 rounded">{userProfile?.age || 'تعیین نشده'}</p>
+                )}
+              </div>
+              
+              <div>
+                <label className="text-sm font-medium text-gray-600">وضعیت:</label>
+                {editingProfile ? (
+                  <select
+                    value={profileForm.is_pregnant === null ? 'null' : profileForm.is_pregnant.toString()}
+                    onChange={(e) => {
+                      const value = e.target.value === 'null' ? null : e.target.value === 'true';
+                      setProfileForm({...profileForm, is_pregnant: value});
+                    }}
+                    className="w-full p-2 border border-gray-300 rounded"
+                  >
+                    <option value="null">هیچکدام</option>
+                    <option value="false">مادر هستم</option>
+                    <option value="true">حامله هستم</option>
+                  </select>
+                ) : (
+                  <p className="text-gray-800 bg-gray-50 p-2 rounded">
+                    {userProfile?.is_pregnant === null ? 'هیچکدام' : 
+                     userProfile?.is_pregnant ? 'حامله' : 'مادر'}
+                  </p>
+                )}
+              </div>
+              
+              {profileForm.is_pregnant && (
+                <div>
+                  <label className="text-sm font-medium text-gray-600">هفته بارداری:</label>
+                  {editingProfile ? (
+                    <input
+                      type="number"
+                      value={profileForm.pregnancy_week || ''}
+                      onChange={(e) => setProfileForm({...profileForm, pregnancy_week: e.target.value ? parseInt(e.target.value) : null})}
+                      className="w-full p-2 border border-gray-300 rounded"
+                      min="1"
+                      max="42"
+                    />
+                  ) : (
+                    <p className="text-gray-800 bg-gray-50 p-2 rounded">{userProfile?.pregnancy_week || 'تعیین نشده'}</p>
+                  )}
+                </div>
+              )}
+              
+              <div>
+                <label className="text-sm font-medium text-gray-600">سابقه پزشکی:</label>
+                {editingProfile ? (
+                  <textarea
+                    value={profileForm.medical_conditions || ''}
+                    onChange={(e) => setProfileForm({...profileForm, medical_conditions: e.target.value})}
+                    className="w-full p-2 border border-gray-300 rounded"
+                    rows={3}
+                  />
+                ) : (
+                  <p className="text-gray-800 bg-gray-50 p-2 rounded">{userProfile?.medical_conditions || 'ندارم'}</p>
+                )}
+              </div>
+              
+              <div>
+                <label className="text-sm font-medium text-gray-600">تاریخ عضویت:</label>
+                <p className="text-gray-800 bg-gray-50 p-2 rounded">{new Date(user.created_at).toLocaleDateString('fa-IR')}</p>
+              </div>
+              
+              {editingProfile && (
+                <button
+                  onClick={handleSaveProfile}
+                  className="w-full flex items-center justify-center gap-2 bg-pink-500 hover:bg-pink-600 text-white py-2 rounded-lg transition-colors duration-200"
+                >
+                  <Save size={16} />
+                  ذخیره تغییرات
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

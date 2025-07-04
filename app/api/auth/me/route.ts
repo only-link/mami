@@ -28,6 +28,28 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // بررسی انقضای حساب کاربری (یک ماه)
+    const accountCreated = new Date(user.created_at);
+    const oneMonthLater = new Date(accountCreated);
+    oneMonthLater.setMonth(oneMonthLater.getMonth() + 1);
+    
+    if (new Date() > oneMonthLater) {
+      // حساب منقضی شده - حذف توکن
+      const response = NextResponse.json(
+        { error: 'حساب کاربری شما منقضی شده است. لطفاً کد دسترسی جدید دریافت کنید.' },
+        { status: 401 }
+      );
+      
+      response.cookies.set('token', '', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 0
+      });
+      
+      return response;
+    }
+
     return NextResponse.json({ user });
   } catch (error) {
     console.error('Error getting user info:', error);

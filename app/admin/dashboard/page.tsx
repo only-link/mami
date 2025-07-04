@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { 
   Users, 
-  MessageSquare, 
   Key, 
   Copy, 
   RefreshCw, 
@@ -14,8 +13,7 @@ import {
   Settings,
   Clock,
   CheckCircle,
-  XCircle,
-  MessageCircleMore
+  XCircle
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
@@ -180,7 +178,6 @@ export default function AdminDashboard() {
   const tabs = [
     { id: 'access-code', label: 'کدهای دسترسی', icon: Key },
     { id: 'users', label: 'کاربران', icon: Users },
-    { id: 'admin-chat', label: 'چت ادمین', icon: MessageCircleMore },
   ];
 
   if (isLoading) {
@@ -429,45 +426,6 @@ export default function AdminDashboard() {
                       </div>
                     ))
                   )}
-                </div>
-              </div>
-            )}
-
-            {/* Admin Chat Tab */}
-            {activeTab === 'admin-chat' && (
-              <div className="space-y-6">
-                <h2 className="text-lg font-semibold text-gray-800">چت ادمین</h2>
-                
-                <div className="bg-pink-50 border border-pink-200 rounded-2xl p-6">
-                  <div className="text-center">
-                    <MessageCircleMore className="mx-auto text-pink-500 mb-4" size={48} />
-                    <h3 className="text-lg font-medium text-gray-800 mb-2">چت زنده با کاربران</h3>
-                    <p className="text-gray-600 mb-6">
-                      در این بخش می‌توانید مستقیماً با کاربران چت کنید
-                    </p>
-                    
-                    <div className="grid gap-4">
-                      {users.filter(u => u.profile?.is_complete).map((user) => (
-                        <div key={user.id} className="bg-white border border-pink-200 rounded-xl p-4">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 bg-pink-500 text-white rounded-full flex items-center justify-center">
-                                <Users size={18} />
-                              </div>
-                              <div>
-                                <h4 className="font-medium text-gray-800">{user.profile.name}</h4>
-                                <p className="text-sm text-gray-600">{user.email}</p>
-                              </div>
-                            </div>
-                            
-                            <button className="px-4 py-2 bg-pink-500 hover:bg-pink-600 text-white rounded-lg transition-colors duration-200">
-                              شروع چت
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
                 </div>
               </div>
             )}
