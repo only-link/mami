@@ -7,6 +7,8 @@ const dbConfig = {
   database: process.env.DB_NAME || 'mami',
   charset: 'utf8mb4',
   timezone: '+00:00',
+  // حذف تنظیمات نامعتبر
+  connectTimeout: 60000,
   acquireTimeout: 60000,
   timeout: 60000,
 };

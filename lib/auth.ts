@@ -67,7 +67,7 @@ export async function validateAccessCode(code: string): Promise<boolean> {
   return false;
 }
 
-// ثبت نام کاربر جدید
+// ثبت نام کاربر جدید - بدون هش کردن رمز عبور
 export async function registerUser(username: string, email: string, password: string): Promise<User> {
   // بررسی وجود نام کاربری یا ایمیل
   const existingUser: any = await executeQuery(
@@ -84,13 +84,10 @@ export async function registerUser(username: string, email: string, password: st
     }
   }
 
-  // هش کردن رمز عبور
-  const passwordHash = await bcrypt.hash(password, 10);
-
-  // درج کاربر جدید
+  // ذخیره رمز عبور بدون هش (طبق درخواست شما)
   const result: any = await executeQuery(
     'INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)',
-    [username, email, passwordHash]
+    [username, email, password]
   );
 
   const userId = result.insertId;
@@ -109,7 +106,7 @@ export async function registerUser(username: string, email: string, password: st
   };
 }
 
-// ورود کاربر
+// ورود کاربر - بدون بررسی هش
 export async function loginUser(username: string, password: string): Promise<User | null> {
   const results: any = await executeQuery(
     'SELECT u.*, p.name, p.age, p.is_pregnant, p.pregnancy_week, p.medical_conditions, p.is_complete FROM users u LEFT JOIN user_profiles p ON u.id = p.user_id WHERE u.username = ? OR u.email = ?',
@@ -121,9 +118,9 @@ export async function loginUser(username: string, password: string): Promise<Use
   }
 
   const user = results[0];
-  const isValidPassword = await bcrypt.compare(password, user.password_hash);
-
-  if (!isValidPassword) {
+  
+  // مقایسه مستقیم رمز عبور (بدون هش)
+  if (user.password_hash !== password) {
     return null;
   }
 
@@ -268,7 +265,7 @@ export async function deleteUser(userId: number): Promise<void> {
   await executeQuery('DELETE FROM users WHERE id = ?', [userId]);
 }
 
-// ورود ادمین - اصلاح شده
+// ورود ادمین - بدون هش
 export async function loginAdmin(username: string, password: string): Promise<boolean> {
   try {
     console.log('🔍 تلاش ورود ادمین:', { username });
@@ -288,8 +285,8 @@ export async function loginAdmin(username: string, password: string): Promise<bo
     const admin = results[0];
     console.log('👤 ادمین پیدا شد:', { id: admin.id, username: admin.username });
     
-    // بررسی رمز عبور
-    const isValidPassword = await bcrypt.compare(password, admin.password_hash);
+    // مقایسه مستقیم رمز عبور (بدون هش)
+    const isValidPassword = admin.password_hash === password;
     console.log('🔐 نتیجه بررسی رمز عبور:', isValidPassword);
     
     if (!isValidPassword) {
