@@ -18,6 +18,7 @@ export interface UserProfile {
   is_pregnant: boolean | null;
   pregnancy_week: number | null;
   medical_conditions: string | null;
+  user_group: string | null;
   is_complete: boolean;
 }
 
@@ -109,7 +110,7 @@ export async function registerUser(username: string, email: string, password: st
 // ورود کاربر - بدون بررسی هش
 export async function loginUser(username: string, password: string): Promise<User | null> {
   const results: any = await executeQuery(
-    'SELECT u.*, p.name, p.age, p.is_pregnant, p.pregnancy_week, p.medical_conditions, p.is_complete FROM users u LEFT JOIN user_profiles p ON u.id = p.user_id WHERE u.username = ? OR u.email = ?',
+    'SELECT u.*, p.name, p.age, p.is_pregnant, p.pregnancy_week, p.medical_conditions, p.user_group, p.is_complete FROM users u LEFT JOIN user_profiles p ON u.id = p.user_id WHERE u.username = ? OR u.email = ?',
     [username, username]
   );
 
@@ -135,6 +136,7 @@ export async function loginUser(username: string, password: string): Promise<Use
       is_pregnant: user.is_pregnant,
       pregnancy_week: user.pregnancy_week,
       medical_conditions: user.medical_conditions,
+      user_group: user.user_group,
       is_complete: user.is_complete || false
     }
   };
@@ -161,7 +163,7 @@ export function verifyToken(token: string): any {
 // دریافت اطلاعات کاربر از طریق ID
 export async function getUserById(userId: number): Promise<User | null> {
   const results: any = await executeQuery(
-    'SELECT u.*, p.name, p.age, p.is_pregnant, p.pregnancy_week, p.medical_conditions, p.is_complete FROM users u LEFT JOIN user_profiles p ON u.id = p.user_id WHERE u.id = ?',
+    'SELECT u.*, p.name, p.age, p.is_pregnant, p.pregnancy_week, p.medical_conditions, p.user_group, p.is_complete FROM users u LEFT JOIN user_profiles p ON u.id = p.user_id WHERE u.id = ?',
     [userId]
   );
 
@@ -181,6 +183,7 @@ export async function getUserById(userId: number): Promise<User | null> {
       is_pregnant: user.is_pregnant,
       pregnancy_week: user.pregnancy_week,
       medical_conditions: user.medical_conditions,
+      user_group: user.user_group,
       is_complete: user.is_complete || false
     }
   };
@@ -210,6 +213,10 @@ export async function updateUserProfile(userId: number, profile: Partial<UserPro
   if (profile.medical_conditions !== undefined) {
     setClause.push('medical_conditions = ?');
     values.push(profile.medical_conditions);
+  }
+  if (profile.user_group !== undefined) {
+    setClause.push('user_group = ?');
+    values.push(profile.user_group);
   }
   if (profile.is_complete !== undefined) {
     setClause.push('is_complete = ?');
@@ -241,7 +248,7 @@ export async function deleteAccessCode(code: string): Promise<void> {
 // دریافت تمام کاربران
 export async function getAllUsers(): Promise<User[]> {
   const results: any = await executeQuery(
-    'SELECT u.*, p.name, p.age, p.is_pregnant, p.pregnancy_week, p.medical_conditions, p.is_complete FROM users u LEFT JOIN user_profiles p ON u.id = p.user_id ORDER BY u.created_at DESC'
+    'SELECT u.*, p.name, p.age, p.is_pregnant, p.pregnancy_week, p.medical_conditions, p.user_group, p.is_complete FROM users u LEFT JOIN user_profiles p ON u.id = p.user_id ORDER BY u.created_at DESC'
   );
 
   return results.map((user: any) => ({
@@ -255,6 +262,7 @@ export async function getAllUsers(): Promise<User[]> {
       is_pregnant: user.is_pregnant,
       pregnancy_week: user.pregnancy_week,
       medical_conditions: user.medical_conditions,
+      user_group: user.user_group,
       is_complete: user.is_complete || false
     }
   }));

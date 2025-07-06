@@ -20,6 +20,7 @@ import {
   EyeOff
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { getRandomQuestions, determineUserGroup } from '@/lib/questions';
 
 interface ChatMessage {
   id: number;
@@ -34,6 +35,7 @@ interface UserProfile {
   is_pregnant: boolean | null;
   pregnancy_week: number | null;
   medical_conditions: string | null;
+  user_group: string | null;
   is_complete: boolean;
 }
 
@@ -63,6 +65,7 @@ export default function ChatPage() {
     is_pregnant: null,
     pregnancy_week: null,
     medical_conditions: '',
+    user_group: null,
     is_complete: false
   });
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -91,6 +94,7 @@ export default function ChatPage() {
           is_pregnant: null,
           pregnancy_week: null,
           medical_conditions: '',
+          user_group: null,
           is_complete: false
         });
         
@@ -103,7 +107,7 @@ export default function ChatPage() {
           await loadChatSessions();
           
           // اگر پروفایل کامل است، آخرین جلسه را بارگذاری کن
-          if (step >= 5) {
+          if (step >= 6) {
             await loadLastChatSession();
           } else {
             // اگر onboarding کامل نشده، پیام خوش‌آمدگویی نمایش بده
@@ -116,7 +120,7 @@ export default function ChatPage() {
             setMessages([welcomeMessage]);
             
             // نمایش گزینه‌ها برای سوالات مناسب
-            if (step === 2) {
+            if (step === 2 || step === 5) {
               setShowOnboardingOptions(true);
             }
           }
@@ -201,7 +205,8 @@ export default function ChatPage() {
     if (profile.is_pregnant === null) return 2;
     if (profile.is_pregnant && profile.pregnancy_week === null) return 3;
     if (!profile.medical_conditions) return 4;
-    return 5;
+    if (!profile.user_group) return 5;
+    return 6;
   };
 
   const getOnboardingMessage = (step: number): string => {
@@ -211,9 +216,20 @@ export default function ChatPage() {
       'وضعیت فعلی شما چیست؟',
       'لطفاً بگید هفته چندم بارداری هستید؟',
       'آیا بیماری زمینه‌ای دارید؟ اگر دارید لطفاً توضیح دهید، در غیر این صورت "ندارم" بنویسید.',
+      'شما در کدام گروه قرار می‌گیرید؟',
       'عالی! اطلاعات شما ذخیره شد و می‌توانید ادامه سوالاتتون رو بپرسید.'
     ];
     return messages[step] || messages[0];
+  };
+
+  const getOnboardingOptions = (step: number): string[] => {
+    if (step === 2) {
+      return ['مادر هستم', 'حامله هستم', 'هیچکدام'];
+    }
+    if (step === 5) {
+      return ['سالمند', 'کودک', 'مادر باردار', 'مادر بعد از زایمان', 'مادر شیرده'];
+    }
+    return [];
   };
 
   // تبدیل اعداد فارسی به انگلیسی
@@ -258,7 +274,7 @@ export default function ChatPage() {
 
     try {
       // اگر در مرحله onboarding هستیم
-      if (onboardingStep < 5) {
+      if (onboardingStep < 6) {
         const result = await processOnboarding(messageContent, onboardingStep);
         if (result.reply) {
           const assistantMsg: ChatMessage = {
@@ -271,7 +287,7 @@ export default function ChatPage() {
           setOnboardingStep(result.nextStep);
           
           // نمایش گزینه‌ها برای سوال بعدی
-          if (result.nextStep === 2) {
+          if (result.nextStep === 2 || result.nextStep === 5) {
             setShowOnboardingOptions(true);
           }
           
@@ -405,9 +421,26 @@ export default function ChatPage() {
         break;
       case 4:
         profile.medical_conditions = content.trim();
-        profile.is_complete = true;
-        reply = 'عالی! اطلاعات شما ذخیره شد و می‌توانید ادامه سوالاتتون رو بپرسید.';
+        reply = 'شما در کدام گروه قرار می‌گیرید؟';
         nextStep = 5;
+        break;
+      case 5:
+        const groupMapping: { [key: string]: string } = {
+          'سالمند': 'elderly',
+          'کودک': 'child',
+          'مادر باردار': 'pregnant_mother',
+          'مادر بعد از زایمان': 'postpartum_mother',
+          'مادر شیرده': 'breastfeeding_mother'
+        };
+        
+        if (groupMapping[content]) {
+          profile.user_group = groupMapping[content];
+          profile.is_complete = true;
+          reply = 'عالی! اطلاعات شما ذخیره شد و می‌توانید ادامه سوالاتتون رو بپرسید.';
+          nextStep = 6;
+        } else {
+          reply = 'لطفاً یکی از گزینه‌های ارائه شده را انتخاب کنید.';
+        }
         break;
     }
 
@@ -469,6 +502,11 @@ export default function ChatPage() {
       </div>
     );
   }
+
+  // دریافت سوالات رندوم بر اساس گروه کاربر
+  const randomQuestions = userProfile?.is_complete 
+    ? getRandomQuestions(userProfile.user_group, 4)
+    : [];
 
   return (
     <div className="min-h-screen bg-gray-50 flex" dir="rtl">
@@ -633,14 +671,9 @@ export default function ChatPage() {
                   من دستیار هوشمند مامی‌لند هستم. آماده‌ام تا در زمینه‌های بارداری، مادری و خانواده به شما کمک کنم.
                 </p>
 
-                {userProfile?.is_complete && (
+                {userProfile?.is_complete && randomQuestions.length > 0 && (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-w-2xl mx-auto">
-                    {[
-                      'نکات مهم دوران بارداری چیست؟',
-                      'چگونه از نوزادم مراقبت کنم؟',
-                      'تغذیه مناسب در بارداری چگونه باشد؟',
-                      'علائم خطرناک بارداری کدامند؟',
-                    ].map((question, index) => (
+                    {randomQuestions.map((question, index) => (
                       <button
                         key={index}
                         onClick={() => handleSendMessage(null, question)}
@@ -710,12 +743,12 @@ export default function ChatPage() {
         </div>
 
         {/* Onboarding Options */}
-        {showOnboardingOptions && onboardingStep === 2 && (
+        {showOnboardingOptions && (onboardingStep === 2 || onboardingStep === 5) && (
           <div className="p-4 bg-white border-t border-gray-200">
             <div className="max-w-4xl mx-auto">
               <p className="text-sm text-gray-600 mb-3 text-center">لطفاً یکی از گزینه‌های زیر را انتخاب کنید:</p>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                {['مادر هستم', 'حامله هستم', 'هیچکدام'].map((option) => (
+                {getOnboardingOptions(onboardingStep).map((option) => (
                   <button
                     key={option}
                     onClick={() => handleOnboardingOption(option)}
@@ -762,6 +795,18 @@ export default function ChatPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="bg-gray-50 border-t border-gray-200 py-2 px-4">
+          <div className="max-w-4xl mx-auto text-center">
+            <p className="text-xs text-gray-500">
+              تمامی حقوق محفوظ است مامی‌لند © {new Date().getFullYear()}
+            </p>
+            <p className="text-xs text-gray-400 mt-1">
+              Developed by Ahmadreza.Avandi@gmail.com
+            </p>
           </div>
         </div>
       </div>
@@ -874,6 +919,33 @@ export default function ChatPage() {
               )}
               
               <div>
+                <label className="text-sm font-medium text-gray-600">گروه کاربری:</label>
+                {editingProfile ? (
+                  <select
+                    value={profileForm.user_group || ''}
+                    onChange={(e) => setProfileForm({...profileForm, user_group: e.target.value || null})}
+                    className="w-full p-2 border border-gray-300 rounded"
+                  >
+                    <option value="">انتخاب کنید</option>
+                    <option value="elderly">سالمند</option>
+                    <option value="child">کودک</option>
+                    <option value="pregnant_mother">مادر باردار</option>
+                    <option value="postpartum_mother">مادر بعد از زایمان</option>
+                    <option value="breastfeeding_mother">مادر شیرده</option>
+                  </select>
+                ) : (
+                  <p className="text-gray-800 bg-gray-50 p-2 rounded">
+                    {userProfile?.user_group === 'elderly' ? 'سالمند' :
+                     userProfile?.user_group === 'child' ? 'کودک' :
+                     userProfile?.user_group === 'pregnant_mother' ? 'مادر باردار' :
+                     userProfile?.user_group === 'postpartum_mother' ? 'مادر بعد از زایمان' :
+                     userProfile?.user_group === 'breastfeeding_mother' ? 'مادر شیرده' :
+                     'تعیین نشده'}
+                  </p>
+                )}
+              </div>
+              
+              <div>
                 <label className="text-sm font-medium text-gray-600">سابقه پزشکی:</label>
                 {editingProfile ? (
                   <textarea
@@ -901,6 +973,18 @@ export default function ChatPage() {
                   ذخیره تغییرات
                 </button>
               )}
+            </div>
+
+            {/* Footer در مودال */}
+            <div className="mt-6 pt-4 border-t border-gray-200">
+              <div className="text-center">
+                <p className="text-xs text-gray-500">
+                  تمامی حقوق محفوظ است مامی‌لند © {new Date().getFullYear()}
+                </p>
+                <p className="text-xs text-gray-400 mt-1">
+                  Developed by Ahmadreza.Avandi@gmail.com
+                </p>
+              </div>
             </div>
           </div>
         </div>
