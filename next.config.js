@@ -1,6 +1,13 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // حذف experimental.appDir که دیگر نیاز نیست
+  output: 'standalone',
+  trailingSlash: true,
+  images: {
+    unoptimized: true
+  },
+  env: {
+    CUSTOM_KEY: process.env.CUSTOM_KEY,
+  }
 }
 
 module.exports = nextConfig
