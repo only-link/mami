@@ -1,12 +1,18 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
-  trailingSlash: true,
+  trailingSlash: false,
   images: {
     unoptimized: true
   },
-  env: {
-    CUSTOM_KEY: process.env.CUSTOM_KEY,
+  experimental: {
+    esmExternals: false
+  },
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      config.externals.push('mysql2')
+    }
+    return config
   }
 }
 
