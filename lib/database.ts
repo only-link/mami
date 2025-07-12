@@ -27,7 +27,7 @@ export async function getConnection() {
   return connection;
 }
 
-export async function executeQuery(query: string, params: any[] = []) {
+export async function executeQuery(query: string, params: any[] = []): Promise<any> {
   try {
     const conn = await getConnection();
     const [results] = await conn.execute(query, params);

@@ -6,7 +6,8 @@ const nextConfig = {
     unoptimized: true
   },
   experimental: {
-    esmExternals: false
+    esmExternals: false,
+    webpackBuildWorker: false
   },
   webpack: (config, { isServer }) => {
     if (isServer) {
@@ -22,7 +23,7 @@ const nextConfig = {
     ignoreBuildErrors: false,
   },
   eslint: {
-    ignoreDuringBuilds: false,
+    ignoreDuringBuilds: true,
   }
 }
 

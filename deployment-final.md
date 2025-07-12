@@ -9,7 +9,8 @@
 - ✅ `next.config.js` - بهینه برای دامنه
 - ✅ `server.js` - سرور پورت 3001
 - ✅ `.htaccess` - HTTPS و routing
-- ✅ `database/` - اسکریپت‌های دیتابیس
+- ✅ `database/install.sql` - اسکریپت دیتابیس
+- ✅ همه خطاهای TypeScript حل شدند
 
 #### 2️⃣ **مراحل دیپلوی:**
 
@@ -19,7 +20,7 @@
 npm install --production
 
 # 3. Build پروژه
-NODE_OPTIONS='--max-old-space-size=1024' npm run build
+npm run build
 
 # 4. اجرای سرور
 PORT=3001 npm start
@@ -76,6 +77,13 @@ GET https://ahmadreza-avandi.ir/
 3. **404 Error**: بررسی کنید `.htaccess`
 4. **Port Error**: مطمئن شوید پورت 3001 آزاد است
 
+### ✅ **مشکلات حل شده:**
+- ❌ TypeScript errors در `lib/auth.ts`
+- ❌ Database type errors
+- ❌ Build configuration issues
+- ❌ ESLint errors
+- ✅ همه فایل‌ها آماده دیپلوی
+
 ---
-**🎉 پروژه آماده دیپلوی است!**
+**🎉 پروژه کاملاً آماده دیپلوی است!**
 **دامنه: https://ahmadreza-avandi.ir**

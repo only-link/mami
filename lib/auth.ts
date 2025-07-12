@@ -191,8 +191,8 @@ export async function getUserById(userId: number): Promise<User | null> {
 
 // به‌روزرسانی پروفایل کاربر
 export async function updateUserProfile(userId: number, profile: Partial<UserProfile>): Promise<void> {
-  const setClause = [];
-  const values = [];
+  const setClause: string[] = [];
+  const values: any[] = [];
 
   if (profile.name !== undefined) {
     setClause.push('name = ?');

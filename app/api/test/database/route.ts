@@ -11,33 +11,33 @@ export async function GET() {
     console.log('✅ اتصال پایه موفق');
 
     // بررسی جداول
-    const tables: any = await executeQuery('SHOW TABLES');
+    const tables = await executeQuery('SHOW TABLES') as any[];
     console.log('📊 جداول موجود:', tables);
 
     // شمارش کاربران
-    const userCount: any = await executeQuery('SELECT COUNT(*) as count FROM users');
+    const userCount = await executeQuery('SELECT COUNT(*) as count FROM users') as any[];
     const totalUsers = userCount[0]?.count || 0;
     console.log('👥 تعداد کاربران:', totalUsers);
 
     // شمارش کدهای فعال
-    const activeCodesCount: any = await executeQuery(
+    const activeCodesCount = await executeQuery(
       'SELECT COUNT(*) as count FROM access_codes WHERE is_used = FALSE AND expires_at > NOW()'
-    );
+    ) as any[];
     const activeCodes = activeCodesCount[0]?.count || 0;
     console.log('🔑 کدهای فعال:', activeCodes);
 
     // شمارش جلسات چت
-    const chatSessionsCount: any = await executeQuery('SELECT COUNT(*) as count FROM chat_sessions');
+    const chatSessionsCount = await executeQuery('SELECT COUNT(*) as count FROM chat_sessions') as any[];
     const totalSessions = chatSessionsCount[0]?.count || 0;
     console.log('💬 جلسات چت:', totalSessions);
 
     // شمارش پیام‌ها
-    const messagesCount: any = await executeQuery('SELECT COUNT(*) as count FROM chat_messages');
+    const messagesCount = await executeQuery('SELECT COUNT(*) as count FROM chat_messages') as any[];
     const totalMessages = messagesCount[0]?.count || 0;
     console.log('📝 کل پیام‌ها:', totalMessages);
 
     // بررسی ادمین‌ها
-    const admins: any = await executeQuery('SELECT username, is_active FROM admins');
+    const admins = await executeQuery('SELECT username, is_active FROM admins') as any[];
     console.log('👨‍💼 ادمین‌ها:', admins);
 
     const result = {
