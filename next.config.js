@@ -17,6 +17,12 @@ const nextConfig = {
   env: {
     DOMAIN: process.env.DOMAIN || 'ahmadreza-avandi.ir',
     PROTOCOL: process.env.PROTOCOL || 'https'
+  },
+  typescript: {
+    ignoreBuildErrors: false,
+  },
+  eslint: {
+    ignoreDuringBuilds: false,
   }
 }
 

@@ -2,12 +2,11 @@ import mysql from 'mysql2/promise';
 
 const dbConfig = {
   host: process.env.DB_HOST || 'localhost',
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '1234',
-  database: process.env.DB_NAME || 'mami',
+  user: process.env.DB_USER || 'rwyzdvfv_root',
+  password: process.env.DB_PASSWORD || 'Avan1386',
+  database: process.env.DB_NAME || 'rwyzdvfv_mami',
   charset: 'utf8mb4',
   timezone: '+00:00',
-  // حذف تنظیمات نامعتبر
   connectTimeout: 60000,
   acquireTimeout: 60000,
   timeout: 60000,

@@ -11,7 +11,7 @@ export async function GET() {
     console.log('✅ اتصال پایه موفق');
 
     // بررسی جداول
-    const tables = await executeQuery('SHOW TABLES');
+    const tables: any = await executeQuery('SHOW TABLES');
     console.log('📊 جداول موجود:', tables);
 
     // شمارش کاربران
@@ -45,12 +45,12 @@ export async function GET() {
       message: 'اتصال دیتابیس موفق',
       data: {
         connection: 'برقرار',
-        tables: tables.length,
+        tables: Array.isArray(tables) ? tables.length : 0,
         users: totalUsers,
         activeCodes: activeCodes,
         chatSessions: totalSessions,
         messages: totalMessages,
-        admins: admins.length,
+        admins: Array.isArray(admins) ? admins.length : 0,
         timestamp: new Date().toISOString()
       },
       details: {
